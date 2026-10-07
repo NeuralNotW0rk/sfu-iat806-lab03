@@ -76,24 +76,8 @@ function staticCollision(ball) {
   }
 }
 
-// Seed: 1661943410
-const factors = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4]
-let frames = [];
 let ball;
 let freeze = false;
-
-function getFrame(x, y, frames) {
-  if (y < height / 2) {
-    // Top half, interpolate between cluster 1 and 2 based on x
-    let iy = Math.min(int((1 - (y / (height / 2))) * 4) + 1, factors.length - 1);
-    let ix = int(Math.max(Math.min(x / width, 1.0), 0.0) * iy);
-    return frames[iy - ix][ix];
-  }
-  // Bottom half normal
-  return frames[0][0];
-}
-
-const yMin = -300;
 
 let soundsL = [];
 let soundsR = [];
@@ -113,12 +97,11 @@ function adjustAudio(x, y) {
     return;
   }
 
-  // Base audio ceiling (minY) on frame distribution
-  const maxFactorIndex = factors.length - 1;
-  const minY = (height / 2) * (1 - (maxFactorIndex - 1) / 4);
+  // Ceiling where the top row (rows - 1) is reached
+  const yMin = (height / 2) * (1 - (rows - 2) / 4);
 
 
-  let t = (y - height / 2) / (minY - height / 2);
+  let t = (y - height / 2) / (yMin - height / 2);
   t = Math.max(0.0, Math.min(1.0, t));
 
   let pos = t * soundsL.length - 1;
@@ -135,25 +118,63 @@ function adjustAudio(x, y) {
   }
 }
 
+const factors = [1, 0.5, 0, -0.5, -1, -1.5, -2, -2.5, -3, -3.5, -4];
+const columns = 5;
+const rows = factors.length; // 11 rows
+
+let frames = [];
+
+function getFrame(x, y, frames) {
+  if (y < height / 2) {
+    // Determine row iy [0, rows - 1]
+    let iy = Math.min(int((1 - (y / (height / 2))) * 4) + 1, rows - 1);
+    iy = Math.max(0, iy);
+
+    // Determine col ix [0, columns - 1]
+    let normX = Math.max(0.0, Math.min(1.0, x / width));
+    let col = Math.min(int(normX * columns), columns - 1);
+
+    return frames[iy][col];
+  }
+
+  // Below baseline: return bottom-most row, leftmost entry
+  return frames[0][0];
+}
+
 async function setup() {
   createCanvas(512, 512);
 
-  // Load frames
-  for (let i = 0; i < factors.length; i++) {
-    frames[i] = [];
-    for (let j = 0; j < factors.length; j++) {
-      frames[i][j] = await loadImage('frames/f' + factors[i] + '_f' + factors[j] + '.png');
+  // Cache by filename to re-downloadind duplicates
+  const imageCache = {};
+
+  for (let iy = 0; iy < rows; iy++) {
+    frames[iy] = [];
+
+    for (let c = 0; c < columns; c++) {
+
+      let normX = columns > 1 ? c / (columns - 1) : 0;
+      let ix = Math.round(normX * iy);
+
+      let i = iy - ix;
+      let j = ix;
+      let path = `frames/f${factors[i]}_f${factors[j]}.png`;
+
+      // Load or reuse duplicate frame
+      if (!imageCache[path]) {
+        imageCache[path] = await loadImage(path);
+      }
+      frames[iy][c] = imageCache[path];
     }
   }
 
   // Load shared base sound (index 0)
-  soundsL[0] = await loadSound('audio/l0.wav');
+  soundsL[0] = await loadSound('audio/l0.mp3');
   soundsR[0] = soundsL[0]; // Shared track for bottom half
 
   // Load directional layers 1 through 3
   for (let i = 1; i < 4; i++) {
-    soundsL[i] = await loadSound('audio/l' + i + '.wav');
-    soundsR[i] = await loadSound('audio/r' + i + '.wav');
+    soundsL[i] = await loadSound('audio/l' + i + '.mp3');
+    soundsR[i] = await loadSound('audio/r' + i + '.mp3');
   }
 
   // Start all unique sound files looping in parallel
@@ -211,4 +232,3 @@ function keyPressed() {
     freeze = !freeze;
   }
 }
-
