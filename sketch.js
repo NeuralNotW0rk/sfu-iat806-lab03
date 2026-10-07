@@ -221,6 +221,7 @@ const accel = 0.1; // Click acceleration factor
 const v = 100; // Random variability of click location
 
 function mousePressed() {
+  Tone.start();
   // Move toward mouse
   ball.vel.x += (mouseX - ball.pos.x + random(-v, v)) * accel;
   ball.vel.y += (mouseY - ball.pos.y + random(-v, v)) * accel;
